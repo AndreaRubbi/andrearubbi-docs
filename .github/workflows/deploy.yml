@@ -1,0 +1,129 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+# =============================================================================
+# CONFIGURATION: Add/remove projects here
+# =============================================================================
+env:
+  # Format: "RepoName:subpath" (comma-separated)
+  # RepoName = GitHub repo slug (under AndreaRubbi/)
+  # subpath = folder name under docs/
+  PROJECTS: "GGE:gge,MixFlow:mixflow,Pear:pear"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout docs hub
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install mkdocs-material pymdown-extensions
+
+      - name: Sync project docs
+        run: |
+          # Parse projects from env variable
+          IFS=',' read -ra PROJECT_LIST <<< "$PROJECTS"
+          
+          for project in "${PROJECT_LIST[@]}"; do
+            # Split "RepoName:subpath"
+            IFS=':' read -r repo subpath <<< "$project"
+            
+            echo "::group::Syncing $repo → docs/$subpath/"
+            
+            # Clone the project repo (shallow, only docs folder)
+            git clone --depth 1 --filter=blob:none --sparse \
+              "https://github.com/AndreaRubbi/${repo}.git" "_repos/${repo}" 2>/dev/null || {
+              echo "⚠️  Could not clone $repo - creating placeholder"
+              mkdir -p "docs/${subpath}"
+              cat > "docs/${subpath}/index.md" << EOF
+          # ${repo}
+          
+          !!! warning "Documentation not available"
+              The documentation for this project is not yet available.
+              
+              Please check back later or visit the [GitHub repository](https://github.com/AndreaRubbi/${repo}).
+          EOF
+              echo "::endgroup::"
+              continue
+            }
+            
+            # Sparse checkout only the docs folder
+            cd "_repos/${repo}"
+            git sparse-checkout set docs
+            cd ../..
+            
+            # Copy docs if they exist
+            if [ -d "_repos/${repo}/docs" ]; then
+              mkdir -p "docs/${subpath}"
+              cp -r "_repos/${repo}/docs/"* "docs/${subpath}/" 2>/dev/null || true
+              
+              # Ensure index.md exists
+              if [ ! -f "docs/${subpath}/index.md" ]; then
+                cat > "docs/${subpath}/index.md" << EOF
+          # ${repo}
+          
+          !!! info "Index page missing"
+              This project has documentation but no \`index.md\` file.
+              
+              Please add an \`index.md\` to the project's \`docs/\` folder.
+          EOF
+              fi
+              echo "✅ Synced $repo docs"
+            else
+              echo "⚠️  No docs/ folder in $repo - creating placeholder"
+              mkdir -p "docs/${subpath}"
+              cat > "docs/${subpath}/index.md" << EOF
+          # ${repo}
+          
+          !!! warning "Documentation not available"
+              This project does not have a \`docs/\` folder yet.
+              
+              Please visit the [GitHub repository](https://github.com/AndreaRubbi/${repo}) for more information.
+          EOF
+            fi
+            
+            echo "::endgroup::"
+          done
+          
+          # Cleanup
+          rm -rf _repos
+
+      - name: Build MkDocs site
+        run: mkdocs build --strict
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
