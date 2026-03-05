@@ -11,8 +11,9 @@ Documentation hub for my open-source projects, built with [MkDocs Material](http
 | Project | Description | Docs |
 |---------|-------------|------|
 | **GGE** | Gene Expression Generative Model Evaluation | [docs.andrearubbi.com/gge](https://docs.andrearubbi.com/gge/) |
-| **MixFlow** | Flow-based generative models | [docs.andrearubbi.com/mixflow](https://docs.andrearubbi.com/mixflow/) |
-| **Pear** | Coming soon | [docs.andrearubbi.com/pear](https://docs.andrearubbi.com/pear/) |
+| **MixFlow** | Flow-based generative models for mixture data | [docs.andrearubbi.com/mixflow](https://docs.andrearubbi.com/mixflow/) |
+| **Pear** | Phylogeny Embedding & Approximate Representation | [docs.andrearubbi.com/pear](https://docs.andrearubbi.com/pear/) |
+| **ContextualizedML** | Contextualized Machine Learning | [contextualized.ml/docs](https://contextualized.ml/docs/) |
 
 ## How It Works
 
