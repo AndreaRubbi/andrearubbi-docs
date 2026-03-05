@@ -20,7 +20,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Shortest-Path Flow Matching with Mixture-Conditioned Bases for OOD Generalization to Unseen Conditions
 
-    [:octicons-arrow-right-24: MixFlow Documentation](SP-FM/readme.md)
+    [:octicons-arrow-right-24: MixFlow Documentation](mixflow/index.md)
 
 -   :material-fruit-pear:{ .lg .middle } **Pear**
 
@@ -28,7 +28,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Phylogeny Embedding & Approximate Representation
 
-    [:octicons-arrow-right-24: Pear Documentation](Pear-EBI/index.md)
+    [:octicons-arrow-right-24: Pear Documentation](pear/index.md)
 
 -   :material-chart-scatter-plot:{ .lg .middle } **ContextualizedML**
 
@@ -36,7 +36,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Contextualized Machine Learning
 
-    [:octicons-arrow-right-24: MixFlow Documentation](contextualized/readme.md)
+    [:octicons-arrow-right-24: ContextualizedML Documentation](contextualized/index.md)
 
 </div>
 

@@ -62,8 +62,9 @@ nav:
   - Home: index.md
   - Projects:
     - GGE: gge/index.md
-    - MixFlow: https://lotfollahi-lab.github.io/SP-FM/
-    - Pear: https://andrearubbi.github.io/Pear-EBI/
+    - MixFlow: mixflow/index.md
+    - Pear: pear/index.md
+    - ContextualizedML: contextualized/index.md
 
 extra:
   social:

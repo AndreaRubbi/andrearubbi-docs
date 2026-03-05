@@ -19,10 +19,10 @@ concurrency:
 # CONFIGURATION: Add/remove projects here
 # =============================================================================
 env:
-  # Format: "RepoName:subpath" (comma-separated)
-  # RepoName = GitHub repo slug (under AndreaRubbi/)
+  # Format: "owner/repo:subpath" (comma-separated)
+  # owner/repo = Full GitHub repo path
   # subpath = folder name under docs/
-  PROJECTS: "GGE:gge,MixFlow:mixflow,Pear:pear"
+  PROJECTS: "AndreaRubbi/GGE:gge,AndreaRubbi/SP-FM:mixflow,AndreaRubbi/Pear-EBI:pear,AndreaRubbi/contextualized:contextualized"
 
 jobs:
   build:
@@ -46,42 +46,43 @@ jobs:
           IFS=',' read -ra PROJECT_LIST <<< "$PROJECTS"
           
           for project in "${PROJECT_LIST[@]}"; do
-            # Split "RepoName:subpath"
+            # Split "owner/repo:subpath"
             IFS=':' read -r repo subpath <<< "$project"
+            repo_name=$(basename "$repo")
             
             echo "::group::Syncing $repo → docs/$subpath/"
             
             # Clone the project repo (shallow, only docs folder)
             git clone --depth 1 --filter=blob:none --sparse \
-              "https://github.com/AndreaRubbi/${repo}.git" "_repos/${repo}" 2>/dev/null || {
+              "https://github.com/${repo}.git" "_repos/${repo_name}" 2>/dev/null || {
               echo "⚠️  Could not clone $repo - creating placeholder"
               mkdir -p "docs/${subpath}"
               cat > "docs/${subpath}/index.md" << EOF
-          # ${repo}
+          # ${repo_name}
           
           !!! warning "Documentation not available"
               The documentation for this project is not yet available.
               
-              Please check back later or visit the [GitHub repository](https://github.com/AndreaRubbi/${repo}).
+              Please check back later or visit the [GitHub repository](https://github.com/${repo}).
           EOF
               echo "::endgroup::"
               continue
             }
             
             # Sparse checkout only the docs folder
-            cd "_repos/${repo}"
+            cd "_repos/${repo_name}"
             git sparse-checkout set docs
             cd ../..
             
             # Copy docs if they exist
-            if [ -d "_repos/${repo}/docs" ]; then
+            if [ -d "_repos/${repo_name}/docs" ]; then
               mkdir -p "docs/${subpath}"
-              cp -r "_repos/${repo}/docs/"* "docs/${subpath}/" 2>/dev/null || true
+              cp -r "_repos/${repo_name}/docs/"* "docs/${subpath}/" 2>/dev/null || true
               
               # Ensure index.md exists
               if [ ! -f "docs/${subpath}/index.md" ]; then
                 cat > "docs/${subpath}/index.md" << EOF
-          # ${repo}
+          # ${repo_name}
           
           !!! info "Index page missing"
               This project has documentation but no \`index.md\` file.
@@ -94,12 +95,12 @@ jobs:
               echo "⚠️  No docs/ folder in $repo - creating placeholder"
               mkdir -p "docs/${subpath}"
               cat > "docs/${subpath}/index.md" << EOF
-          # ${repo}
+          # ${repo_name}
           
           !!! warning "Documentation not available"
               This project does not have a \`docs/\` folder yet.
               
-              Please visit the [GitHub repository](https://github.com/AndreaRubbi/${repo}) for more information.
+              Please visit the [GitHub repository](https://github.com/${repo}) for more information.
           EOF
             fi
             
