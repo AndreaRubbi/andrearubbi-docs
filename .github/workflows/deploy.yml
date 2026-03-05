@@ -22,7 +22,7 @@ env:
   # Format: "owner/repo:subpath" (comma-separated)
   # owner/repo = Full GitHub repo path
   # subpath = folder name under docs/
-  PROJECTS: "AndreaRubbi/GGE:gge,AndreaRubbi/SP-FM:mixflow,AndreaRubbi/Pear-EBI:pear,AndreaRubbi/contextualized"
+  PROJECTS: "AndreaRubbi/GGE:gge,AndreaRubbi/SP-FM:mixflow,AndreaRubbi/Pear-EBI:pear,AndreaRubbi/contextualized:contextualized"
 
 jobs:
   build:
@@ -69,9 +69,9 @@ jobs:
               continue
             }
             
-            # Sparse checkout only the docs folder
+            # Sparse checkout docs folder and root README
             cd "_repos/${repo_name}"
-            git sparse-checkout set docs
+            git sparse-checkout set docs README.md readme.md
             cd ../..
             
             # Copy docs if they exist
@@ -79,9 +79,13 @@ jobs:
               mkdir -p "docs/${subpath}"
               cp -r "_repos/${repo_name}/docs/"* "docs/${subpath}/" 2>/dev/null || true
               
-              # Ensure index.md exists
+              # Ensure index.md exists (check for readme.md as fallback)
               if [ ! -f "docs/${subpath}/index.md" ]; then
-                cat > "docs/${subpath}/index.md" << EOF
+                if [ -f "docs/${subpath}/readme.md" ] || [ -f "docs/${subpath}/README.md" ]; then
+                  # Rename README to index if no index exists
+                  mv "docs/${subpath}/"[Rr][Ee][Aa][Dd][Mm][Ee].md "docs/${subpath}/index.md" 2>/dev/null || true
+                else
+                  cat > "docs/${subpath}/index.md" << EOF
           # ${repo_name}
           
           !!! info "Index page missing"
@@ -89,8 +93,14 @@ jobs:
               
               Please add an \`index.md\` to the project's \`docs/\` folder.
           EOF
+                fi
               fi
               echo "✅ Synced $repo docs"
+            # Check for root README.md as fallback
+            elif [ -f "_repos/${repo_name}/README.md" ] || [ -f "_repos/${repo_name}/readme.md" ]; then
+              mkdir -p "docs/${subpath}"
+              cp "_repos/${repo_name}/"[Rr][Ee][Aa][Dd][Mm][Ee].md "docs/${subpath}/readme.md" 2>/dev/null || true
+              echo "✅ Synced $repo README.md"
             else
               echo "⚠️  No docs/ folder in $repo - creating placeholder"
               mkdir -p "docs/${subpath}"

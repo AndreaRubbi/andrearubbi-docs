@@ -64,7 +64,7 @@ nav:
     - GGE: gge/index.md
     - MixFlow: mixflow/index.md
     - Pear: pear/index.md
-    - ContextualizedML: contextualized/index.md
+    - ContextualizedML: contextualized/readme.md
 
 extra:
   social:
