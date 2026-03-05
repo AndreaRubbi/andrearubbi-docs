@@ -36,7 +36,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Contextualized Machine Learning
 
-    [:octicons-arrow-right-24: ContextualizedML Documentation](contextualized/index.md)
+    [:octicons-arrow-right-24: ContextualizedML Documentation](https://contextualized.ml/docs/)
 
 </div>
 
