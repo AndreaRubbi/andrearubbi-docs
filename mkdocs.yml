@@ -54,13 +54,16 @@ markdown_extensions:
   - md_in_html
   - toc:
       permalink: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
   - Home: index.md
   - Projects:
     - GGE: gge/index.md
-    - MixFlow: mixflow/index.md
-    - Pear: pear/index.md
+    - MixFlow: https://lotfollahi-lab.github.io/SP-FM/
+    - Pear: https://andrearubbi.github.io/Pear-EBI/
 
 extra:
   social:

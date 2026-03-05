@@ -20,7 +20,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Flow-based generative models for mixture data
 
-    [:octicons-arrow-right-24: MixFlow Documentation](mixflow/index.md)
+    [:octicons-arrow-right-24: MixFlow Documentation](https://lotfollahi-lab.github.io/SP-FM/)
 
 -   :material-fruit-pear:{ .lg .middle } **Pear**
 
@@ -28,7 +28,7 @@ Welcome to the documentation hub for my open-source projects.
 
     Coming soon
 
-    [:octicons-arrow-right-24: Pear Documentation](pear/index.md)
+    [:octicons-arrow-right-24: Pear Documentation](https://andrearubbi.github.io/Pear-EBI/)
 
 </div>
 
