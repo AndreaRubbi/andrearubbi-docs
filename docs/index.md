@@ -18,17 +18,25 @@ Welcome to the documentation hub for my open-source projects.
 
     ---
 
-    Flow-based generative models for mixture data
+    Shortest-Path Flow Matching with Mixture-Conditioned Bases for OOD Generalization to Unseen Conditions
 
-    [:octicons-arrow-right-24: MixFlow Documentation](https://lotfollahi-lab.github.io/SP-FM/)
+    [:octicons-arrow-right-24: MixFlow Documentation](SP-FM/readme.md)
 
 -   :material-fruit-pear:{ .lg .middle } **Pear**
 
     ---
 
-    Coming soon
+    Phylogeny Embedding & Approximate Representation
 
-    [:octicons-arrow-right-24: Pear Documentation](https://andrearubbi.github.io/Pear-EBI/)
+    [:octicons-arrow-right-24: Pear Documentation](Pear-EBI/index.md)
+
+-   :material-chart-scatter-plot:{ .lg .middle } **ContextualizedML**
+
+    ---
+
+    Contextualized Machine Learning
+
+    [:octicons-arrow-right-24: MixFlow Documentation](contextualized/readme.md)
 
 </div>
 
