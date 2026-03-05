@@ -52,8 +52,8 @@ jobs:
             
             echo "::group::Syncing $repo → docs/$subpath/"
             
-            # Clone the project repo (shallow, only docs folder)
-            git clone --depth 1 --filter=blob:none --sparse \
+            # Clone the project repo (shallow clone)
+            git clone --depth 1 \
               "https://github.com/${repo}.git" "_repos/${repo_name}" 2>/dev/null || {
               echo "⚠️  Could not clone $repo - creating placeholder"
               mkdir -p "docs/${subpath}"
@@ -68,11 +68,6 @@ jobs:
               echo "::endgroup::"
               continue
             }
-            
-            # Sparse checkout docs folder and root README
-            cd "_repos/${repo_name}"
-            git sparse-checkout set docs README.md readme.md
-            cd ../..
             
             # Copy docs if they exist
             if [ -d "_repos/${repo_name}/docs" ]; then
