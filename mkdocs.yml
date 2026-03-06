@@ -61,9 +61,46 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Projects:
-    - GGE: gge/index.md
-    - MixFlow: mixflow/index.md
-    - Pear: pear/index.md
+    - GGE:
+        - Overview: gge/index.md
+        - Quick Start: gge/quickstart.md
+        - Installation: gge/installation.md
+        - API: gge/api.md
+        - Guide:
+          - CLI: gge/guide/cli.md
+          - Metrics: gge/guide/metrics.md
+          - Visualizations: gge/guide/visualizations.md
+        - Contributing: gge/contributing.md
+    - MixFlow:
+        - Overview: mixflow/index.md
+        - Installation: mixflow/installation.md
+        - Running: mixflow/running.md
+    - Pear:
+        - Overview: pear/index.md
+        - Tutorials:
+          - How to use Pear EBI: pear/tutorials/1How_to_use_pear_ebi.md
+          - Advanced Usage: pear/tutorials/2Advanced use of pear_ebi.md
+          - Python & Paper Examples: pear/tutorials/3How to use pear_ebi on python and reproduce the examples on the paper.md
+        - Modules:
+          - Phylogenetic Tree Parsing: pear/modules/pear_ebi/tree_emb_parser.md
+          - Tree Set: pear/modules/pear_ebi/tree_set.md
+          - Distance Calculations:
+            - Hash RF: pear/modules/pear_ebi/calculate_distances/hashrf.md
+            - Maple RF: pear/modules/pear_ebi/calculate_distances/maple_RF.md
+            - TQDist: pear/modules/pear_ebi/calculate_distances/tqdist.md
+          - Embeddings:
+            - Isomap: pear/modules/pear_ebi/embeddings/Isomap_e.md
+            - LLE: pear/modules/pear_ebi/embeddings/LLE_e.md
+            - PCoA: pear/modules/pear_ebi/embeddings/PCoA_e.md
+            - Embedding Quality: pear/modules/pear_ebi/embeddings/emb_quality.md
+            - t-SNE: pear/modules/pear_ebi/embeddings/tSNE_e.md
+            - Graph: pear/modules/pear_ebi/embeddings/graph/graph.md
+          - Interactive Mode: pear/modules/pear_ebi/interactive_mode/interactive.md
+          - Subsampling:
+            - Subsample: pear/modules/pear_ebi/subsample/subsample.md
+            - Multiprocess: pear/modules/pear_ebi/subsample/subsample_multiprocess.md
+          - Testing: pear/modules/pear_ebi/test/test.md
+          - Documentation Gen: pear/modules/gendoc.md
     - ContextualizedML: https://contextualized.ml/docs/
 
 extra:
