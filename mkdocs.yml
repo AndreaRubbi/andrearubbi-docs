@@ -99,7 +99,7 @@ nav:
           - Subsampling:
             - Subsample: pear/modules/pear_ebi/subsample/subsample.md
             - Multiprocess: pear/modules/pear_ebi/subsample/subsample_multiprocess.md
-          - Testing: pear/modules/pear_ebi/test/test.md
+          - Testing: pear/modules/test/test.md
           - Documentation Gen: pear/modules/gendoc.md
     - ContextualizedML: https://contextualized.ml/docs/
 
