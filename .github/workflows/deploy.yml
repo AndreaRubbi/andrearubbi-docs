@@ -22,7 +22,7 @@ env:
   # Format: "owner/repo:subpath" (comma-separated)
   # owner/repo = Full GitHub repo path
   # subpath = folder name under docs/
-  PROJECTS: "AndreaRubbi/GGE:gge,AndreaRubbi/SP-FM:mixflow,AndreaRubbi/Pear-EBI:pear"
+  PROJECTS: "AndreaRubbi/GGE:gge,AndreaRubbi/Pear-EBI:pear"
 
 jobs:
   build:
