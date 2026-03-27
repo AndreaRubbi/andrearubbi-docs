@@ -1,0 +1,295 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.row{display:flex;gap:0;width:100%}
+.left{width:220px;min-width:220px;padding:8px 12px;border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;gap:6px}
+.right{flex:1;min-width:0;position:relative}
+canvas.gl{width:100%;height:520px;display:block;border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0}
+.sl-row{display:flex;align-items:center;gap:6px}
+.sl-row label{font-size:11px;color:var(--color-text-secondary);min-width:28px}
+.sl-row span{font-size:12px;font-weight:500;color:var(--color-text-primary);min-width:28px;text-align:right;font-variant-numeric:tabular-nums}
+.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+.card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:6px 8px}
+.card .lab{font-size:9px;color:var(--color-text-secondary)}
+.card .eq{font-size:11px;font-weight:500;color:var(--color-text-primary)}
+.card .val{font-size:14px;font-weight:500}
+.bar-wrap{position:relative;height:120px;margin:4px 0 0}
+.legend{display:flex;gap:8px;font-size:10px;color:var(--color-text-secondary);margin:4px 0 0;flex-wrap:wrap}
+.legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:3px}
+</style>
+
+<div class="row">
+<div class="left">
+  <div class="sl-row">
+    <label>I</label>
+    <input type="range" id="si" min="1" max="12" value="4" step="1" style="flex:1" oninput="upd()">
+    <span id="vi">4</span>
+  </div>
+  <div class="sl-row">
+    <label>D</label>
+    <input type="range" id="sd" min="2" max="500" value="50" step="1" style="flex:1" oninput="upd()">
+    <span id="vd">50</span>
+  </div>
+  <div class="sl-row">
+    <label>J</label>
+    <input type="range" id="sj" min="4" max="200" value="50" step="1" style="flex:1" oninput="upd()">
+    <span id="vj">50</span>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="lab">Variables</div><div class="eq">I+J</div><div class="val" id="cv" style="color:var(--color-text-primary)">54</div></div>
+    <div class="card"><div class="lab">Constraints</div><div class="eq">ID+I</div><div class="val" id="cc" style="color:#0F6E56">204</div></div>
+    <div class="card"><div class="lab">DoF</div><div class="eq">J−ID</div><div class="val" id="cd" style="color:#D85A30">0</div></div>
+  </div>
+
+  <div class="bar-wrap"><canvas id="bar"></canvas></div>
+
+  <div class="legend">
+    <span><span class="legend-dot" style="background:#1D9E75"></span>Constrained</span>
+    <span><span class="legend-dot" style="background:#D85A30"></span>Free (DoF)</span>
+  </div>
+</div>
+<div class="right">
+  <canvas class="gl" id="gl"></canvas>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const dk=matchMedia('(prefers-color-scheme:dark)').matches;
+const tealH='#1D9E75',coralH='#D85A30',purpH='#7F77DD',amberH='#EF9F27';
+
+const barCtx=document.getElementById('bar');
+const barChart=new Chart(barCtx,{
+  type:'bar',
+  data:{labels:[],datasets:[
+    {label:'Constrained',data:[],backgroundColor:tealH+'77',borderColor:tealH,borderWidth:0.5,borderRadius:2},
+    {label:'Free',data:[],backgroundColor:coralH+'77',borderColor:coralH,borderWidth:0.5,borderRadius:2}
+  ]},
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    indexAxis:'y',
+    scales:{
+      x:{stacked:true,grid:{color:dk?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'},ticks:{display:false}},
+      y:{stacked:true,grid:{display:false},ticks:{color:dk?'#999':'#777',font:{size:10}}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:true}}
+  }
+});
+
+function upd(){
+  const I=+document.getElementById('si').value;
+  const D=+document.getElementById('sd').value;
+  const J=+document.getElementById('sj').value;
+  document.getElementById('vi').textContent=I;
+  document.getElementById('vd').textContent=D;
+  document.getElementById('vj').textContent=J;
+
+  const vars=I+J,cons=I*D+I,dof=Math.max(0,J-I*D);
+  document.getElementById('cv').textContent=vars;
+  document.getElementById('cc').textContent=cons;
+  document.getElementById('cd').textContent=dof===0?'0':''+dof;
+  document.getElementById('cd').style.color=dof===0?tealH:coralH;
+
+  const labs=[],cD=[],fD=[];
+  for(let i=1;i<=Math.min(I,8);i++){
+    labs.push('I='+i);
+    const c=Math.min(i*D+i,J);
+    cD.push(c);
+    fD.push(Math.max(0,J-c));
+  }
+  barChart.data.labels=labs;
+  barChart.data.datasets[0].data=cD;
+  barChart.data.datasets[1].data=fD;
+  barChart.update('none');
+
+  updateManifold(I,D,J);
+}
+
+const cv=document.getElementById('gl');
+const rr=cv.getBoundingClientRect();
+const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+ren.setPixelRatio(window.devicePixelRatio);ren.setSize(rr.width,520);
+ren.setClearColor(dk?0x111111:0xf5f4f0,1);
+
+const sc=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(40,rr.width/520,0.1,100);
+cam.position.set(5,4,7);cam.lookAt(0,0,0);
+
+const ctrl=new THREE.OrbitControls(cam,cv);
+ctrl.enableDamping=true;ctrl.dampingFactor=0.08;ctrl.minDistance=3;ctrl.maxDistance=20;
+
+const manifoldGeo=new THREE.BufferGeometry();
+const mRes=40;
+const mVerts=new Float32Array((mRes+1)*(mRes+1)*3);
+const mIdx=[];
+function buildManifold(){
+  for(let i=0;i<=mRes;i++){
+    for(let j=0;j<=mRes;j++){
+      const u=(i/mRes-0.5)*6;
+      const v=(j/mRes-0.5)*6;
+      const idx=(i*(mRes+1)+j)*3;
+      const r=Math.sqrt(u*u+v*v);
+      const h=-0.15*r*r+0.02*Math.sin(r*2)*r;
+      mVerts[idx]=u;mVerts[idx+1]=h;mVerts[idx+2]=v;
+    }
+  }
+  manifoldGeo.setAttribute('position',new THREE.BufferAttribute(mVerts,3));
+  if(manifoldGeo.index===null){
+    for(let i=0;i<mRes;i++){
+      for(let j=0;j<mRes;j++){
+        const a=i*(mRes+1)+j,b=a+1,c=(i+1)*(mRes+1)+j,d=c+1;
+        mIdx.push(a,b,c,b,d,c);
+      }
+    }
+    manifoldGeo.setIndex(mIdx);
+  }
+  manifoldGeo.computeVertexNormals();
+}
+buildManifold();
+
+const manifoldMat=new THREE.MeshBasicMaterial({color:dk?0x222233:0xdde0ea,transparent:true,opacity:0.25,side:THREE.DoubleSide,wireframe:false});
+const manifoldWire=new THREE.MeshBasicMaterial({color:dk?0x333355:0xbbc0d0,transparent:true,opacity:0.08,wireframe:true,side:THREE.DoubleSide});
+sc.add(new THREE.Mesh(manifoldGeo,manifoldMat));
+sc.add(new THREE.Mesh(manifoldGeo,manifoldWire));
+
+function getManifoldY(x,z){
+  const r=Math.sqrt(x*x+z*z);
+  return -0.15*r*r+0.02*Math.sin(r*2)*r;
+}
+
+const targetPos=new THREE.Vector3(2.2,0,1.8);
+targetPos.y=getManifoldY(targetPos.x,targetPos.z)+0.05;
+
+function srand(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296;}}
+function mkrn(seed){let sr=srand(seed);return function(){let u=0,v=0;while(!u)u=sr();while(!v)v=sr();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+
+const tgtPtsGeo=new THREE.BufferGeometry();
+let srg=mkrn(42);
+const tgtN=60;const tgtArr=new Float32Array(tgtN*3);
+for(let i=0;i<tgtN;i++){
+  const x=targetPos.x+srg()*0.25;const z=targetPos.z+srg()*0.25;
+  tgtArr[i*3]=x;tgtArr[i*3+1]=getManifoldY(x,z)+0.08;tgtArr[i*3+2]=z;
+}
+tgtPtsGeo.setAttribute('position',new THREE.BufferAttribute(tgtArr,3));
+const tgtPts=new THREE.Points(tgtPtsGeo,new THREE.PointsMaterial({size:0.06,color:dk?0x85B7EB:0x185FA5,transparent:true,opacity:0.5}));
+sc.add(tgtPts);
+
+const tgtLabel=makeLabel('target',dk?'#85B7EB':'#185FA5');
+tgtLabel.position.set(targetPos.x,targetPos.y+0.5,targetPos.z);
+tgtLabel.scale.set(1,0.3,1);
+sc.add(tgtLabel);
+
+function makeLabel(txt,col){
+  const c=document.createElement('canvas');c.width=128;c.height=32;
+  const x=c.getContext('2d');x.font='bold 13px sans-serif';x.fillStyle=col;x.textAlign='center';x.fillText(txt,64,20);
+  return new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,opacity:0.7}));
+}
+
+let vanillaGroup=new THREE.Group();
+let gmmSubspaceGroup=new THREE.Group();
+let gmmGeodesicGroup=new THREE.Group();
+let modeDotsGroup=new THREE.Group();
+sc.add(vanillaGroup);sc.add(gmmSubspaceGroup);sc.add(gmmGeodesicGroup);sc.add(modeDotsGroup);
+
+function clearGroup(g){while(g.children.length)g.remove(g.children[0]);}
+
+function makeCurve(p1,p2,col,opacity,lw,lift){
+  const mid=new THREE.Vector3().addVectors(p1,p2).multiplyScalar(0.5);
+  mid.y+=lift||0.5;
+  const curve=new THREE.QuadraticBezierCurve3(p1,mid,p2);
+  const pts=curve.getPoints(30);
+  const geo=new THREE.BufferGeometry().setFromPoints(pts);
+  return new THREE.Line(geo,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:opacity,linewidth:lw||1}));
+}
+
+function updateManifold(I,D,J){
+  clearGroup(vanillaGroup);
+  clearGroup(gmmSubspaceGroup);
+  clearGroup(gmmGeodesicGroup);
+  clearGroup(modeDotsGroup);
+
+  const vanillaPos=new THREE.Vector3(0,getManifoldY(0,0)+0.05,0);
+  const vanGeo=new THREE.SphereGeometry(0.08,12,12);
+  const vanMat=new THREE.MeshBasicMaterial({color:new THREE.Color(purpH),transparent:true,opacity:0.8});
+  vanillaGroup.add(new THREE.Mesh(vanGeo,vanMat).translateX(vanillaPos.x).translateY(vanillaPos.y).translateZ(vanillaPos.z));
+
+  const vanLine=makeCurve(vanillaPos,targetPos,new THREE.Color(purpH),0.4,1,0.8);
+  vanillaGroup.add(vanLine);
+
+  const vanLabel=makeLabel('N(0,I)',purpH);
+  vanLabel.position.set(vanillaPos.x,vanillaPos.y+0.45,vanillaPos.z);
+  vanLabel.scale.set(0.9,0.28,1);
+  vanillaGroup.add(vanLabel);
+
+  const dof=Math.max(0,J-I*D);
+  const maxI=Math.min(I,8);
+
+  const subPts=[];
+  const angleStep=Math.PI*2/Math.max(maxI,3);
+  const baseR=0.6+maxI*0.12;
+  for(let i=0;i<maxI;i++){
+    const ang=angleStep*i-Math.PI/2;
+    const bx=targetPos.x+Math.cos(ang)*baseR*(0.8+dof/Math.max(J,1)*1.5);
+    const bz=targetPos.z+Math.sin(ang)*baseR*(0.8+dof/Math.max(J,1)*1.5);
+    const by=getManifoldY(bx,bz)+0.05;
+    subPts.push(new THREE.Vector3(bx,by,bz));
+
+    const dotGeo=new THREE.SphereGeometry(0.06,8,8);
+    const dotMat=new THREE.MeshBasicMaterial({color:new THREE.Color(coralH),transparent:true,opacity:0.9});
+    const dot=new THREE.Mesh(dotGeo,dotMat);
+    dot.position.copy(subPts[i]);
+    modeDotsGroup.add(dot);
+
+    const geodesic=makeCurve(subPts[i],targetPos,new THREE.Color(coralH),0.5,1,0.3);
+    gmmGeodesicGroup.add(geodesic);
+  }
+
+  if(maxI>=3){
+    const ringPts=[];
+    for(let i=0;i<=maxI;i++){
+      const idx=i%maxI;
+      ringPts.push(subPts[idx]);
+    }
+    const ringGeo=new THREE.BufferGeometry().setFromPoints(ringPts);
+    gmmSubspaceGroup.add(new THREE.Line(ringGeo,new THREE.LineBasicMaterial({color:new THREE.Color(coralH),transparent:true,opacity:0.2})));
+  }
+
+  const gmmLabel=makeLabel('GMM(I='+I+')',coralH);
+  const avgX=subPts.reduce((s,p)=>s+p.x,0)/subPts.length;
+  const avgZ=subPts.reduce((s,p)=>s+p.z,0)/subPts.length;
+  gmmLabel.position.set(avgX,getManifoldY(avgX,avgZ)+0.7,avgZ);
+  gmmLabel.scale.set(1.1,0.3,1);
+  gmmSubspaceGroup.add(gmmLabel);
+
+  const dofLabel=makeLabel('DoF='+dof,dof===0?tealH:coralH);
+  dofLabel.position.set(avgX,getManifoldY(avgX,avgZ)+1.1,avgZ);
+  dofLabel.scale.set(1,0.28,1);
+  gmmSubspaceGroup.add(dofLabel);
+}
+
+let autoRot=true,idleT=null;
+ctrl.addEventListener('start',()=>{autoRot=false;if(idleT)clearTimeout(idleT);});
+ctrl.addEventListener('end',()=>{idleT=setTimeout(()=>{autoRot=true;},3000);});
+
+function anim(){
+  requestAnimationFrame(anim);
+  if(autoRot){
+    const r=Math.sqrt(cam.position.x**2+cam.position.z**2);
+    const th=Math.atan2(cam.position.x,cam.position.z)+0.0015;
+    cam.position.x=r*Math.sin(th);cam.position.z=r*Math.cos(th);
+  }
+  ctrl.update();
+  ren.render(sc,cam);
+}
+anim();
+
+upd();
+
+window.addEventListener('resize',()=>{
+  const r=cv.parentElement.getBoundingClientRect();
+  ren.setSize(r.width,520);cam.aspect=r.width/520;cam.updateProjectionMatrix();
+});
+</script>
