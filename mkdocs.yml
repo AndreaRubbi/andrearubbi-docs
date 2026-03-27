@@ -73,6 +73,7 @@ nav:
     - Overview: mixflow/index.md
     - Installation: mixflow/installation.md
     - Running: mixflow/running.md
+    - Interactive Visualization: mixflow/interactive_visualization.md
   - Pear:
     - Overview: pear/index.md
     - Tutorials:

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SP-FM: MLP + 3D Flow Matching</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anthropic Sans',system-ui,sans-serif;background:#111}
+.layout{display:flex;gap:0;width:100%;height:100vh}
+.arch{width:210px;min-width:210px;border-right:0.5px solid rgba(255,255,255,0.1);padding:6px 10px 6px 4px;display:flex;flex-direction:column;overflow:hidden;background:#111}
+.sc{flex:1;min-width:0;position:relative}
+canvas.gl{width:100%;height:100%;display:block}
+svg.ad{width:100%;display:block}
+.ctrls{display:flex;gap:6px;align-items:center;padding:6px 10px;position:absolute;bottom:6px;left:0;right:0;justify-content:center}
+.ctrls button{background:rgba(0,0,0,0.35);border:0.5px solid rgba(255,255,255,0.2);border-radius:8px;padding:4px 10px;font-size:11px;color:rgba(255,255,255,0.85);cursor:pointer;font-family:inherit;backdrop-filter:blur(4px)}
+.ctrls button:hover{background:rgba(0,0,0,0.5)}
+.ctrls span{font-size:11px;color:rgba(255,255,255,0.5);min-width:40px;text-align:center;font-variant-numeric:tabular-nums}
+.dr{display:flex;gap:3px;flex-wrap:wrap;padding:3px 0}
+.db{font-size:10px;padding:2px 7px;border-radius:10px;border:0.5px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;font-family:inherit;transition:all 0.2s}
+.db.on{border-color:#D85A30;color:#D85A30;background:rgba(216,90,48,0.08)}
+.lb{font-size:10px;color:rgba(255,255,255,0.5);margin:5px 0 1px}
+.mode-tog{display:flex;gap:2px;margin:4px 0}
+.mt{font-size:10px;padding:2px 8px;border-radius:8px;border:0.5px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;font-family:inherit;transition:all 0.2s}
+.mt.on{border-color:#534AB7;color:#534AB7;background:rgba(83,74,183,0.08)}
+.mt.spfm.on{border-color:#D85A30;color:#D85A30;background:rgba(216,90,48,0.08)}
+</style>
+</head>
+<body>
+<div class="layout">
+<div class="arch">
+  <div class="lb">Drug:</div>
+  <div class="dr" id="dbtns"></div>
+  <div class="lb">Method:</div>
+  <div class="mode-tog">
+    <button class="mt spfm on" id="mt-spfm" onclick="setMethod('spfm')">SP-FM</button>
+    <button class="mt" id="mt-van" onclick="setMethod('vanilla')">Vanilla CFM</button>
+  </div>
+  <svg class="ad" id="asvg" viewBox="0 0 195 420"></svg>
+</div>
+<div class="sc">
+  <canvas class="gl" id="gl"></canvas>
+  <div class="ctrls">
+    <button onclick="playF()" id="pbtn">Play</button>
+    <button onclick="resetF()">Reset</button>
+    <input type="range" id="tsl" min="0" max="100" value="0" style="flex:0 1 110px;accent-color:#D85A30" oninput="setT(this.value/100)">
+    <span id="td">t = 0.00</span>
+  </div>
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const dk=true;
+const DRUGS=[
+  {name:'Drug A',col:'#0F6E56',cl:'#5DCAA5',ctr:[2.8,2.2,1.8],moff:[0.9,0.7,0.6]},
+  {name:'Drug B',col:'#185FA5',cl:'#85B7EB',ctr:[-2.2,2.8,-1.2],moff:[-0.7,0.8,-0.5]},
+  {name:'Drug C',col:'#993556',cl:'#ED93B1',ctr:[-2.8,-1.8,2.2],moff:[-0.8,-0.6,0.9]},
+  {name:'Drug D',col:'#854F0B',cl:'#FAC775',ctr:[1.8,-2.8,-1.8],moff:[0.7,-0.8,-0.6]},
+];
+let aD=0,method='spfm',fT=0,fP=false;
+
+const bc=document.getElementById('dbtns');
+DRUGS.forEach((d,i)=>{const b=document.createElement('button');b.className='db'+(i===0?' on':'');b.textContent=d.name;b.onclick=()=>selD(i);bc.appendChild(b);});
+
+function selD(i){aD=i;fT=0;document.getElementById('tsl').value=0;document.getElementById('td').textContent='t = 0.00';
+document.querySelectorAll('.db').forEach((b,j)=>b.className='db'+(j===i?' on':''));animArch();buildP();updateF();}
+
+function setMethod(m){method=m;fT=0;document.getElementById('tsl').value=0;document.getElementById('td').textContent='t = 0.00';
+document.getElementById('mt-spfm').className='mt spfm'+(m==='spfm'?' on':'');
+document.getElementById('mt-van').className='mt'+(m==='vanilla'?' on':'');animArch();buildP();updateF();}
+
+let aFrame=0,aId=null;
+function animArch(){aFrame=0;if(aId)cancelAnimationFrame(aId);function tk(){aFrame++;drawArch(aFrame);if(aFrame<65)aId=requestAnimationFrame(tk);}tk();}
+
+function srand(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296;}}
+
+function drawArch(frame){
+  const svg=document.getElementById('asvg');
+  const d=DRUGS[aD];
+  const dc=d.cl;
+  const txt='rgba(255,255,255,0.5)';
+  const txtF='rgba(255,255,255,0.2)';
+  const nStr='rgba(255,255,255,0.12)';
+  const accC='#D85A30';
+  const accBg='rgba(216,90,48,0.12)';
+  const purC='#AFA9EC';
+  const purBg='rgba(127,119,221,0.12)';
+  const nBg='rgba(255,255,255,0.04)';
+  const isSpfm=method==='spfm';
+
+  const layers=[8,12,10,8,4];
+  const layerY=[52,102,152,202,252];
+  const gumY=292;const modeY=338;const sampY=390;
+  const propD=[0,8,16,24,32];
+  const gumD=40;const modeD=48;const sampD=55;
+
+  const acts=[];
+  let sr=srand(aD*137+method.length);
+  layers.forEach((n,li)=>{
+    const a=[];
+    for(let j=0;j<n;j++){
+      const v=sr();
+      if(li===layers.length-1) a.push(j===aD?1:0.03+sr()*0.08);
+      else a.push(0.15+v*0.85);
+    }
+    acts.push(a);
+  });
+
+  let s='';
+
+  const pillActive=frame>1;
+  s+=`<rect x="30" y="14" width="135" height="18" rx="9" fill="${pillActive?accBg:nBg}" stroke="${pillActive?dc:nStr}" stroke-width="0.5"/>`;
+  s+=`<text x="97" y="26" text-anchor="middle" fill="${pillActive?dc:txtF}" font-size="10" font-weight="500" font-family="system-ui,sans-serif">${d.name}</text>`;
+  s+=`<line x1="97" y1="32" x2="97" y2="46" stroke="${nStr}" stroke-width="0.4"/>`;
+
+  layers.forEach((n,li)=>{
+    const y=layerY[li];
+    const gap=Math.min(13,150/n);
+    const sx=97-(n-1)*gap/2;
+    const lActive=frame>propD[li];
+    const lProg=lActive?Math.min(1,(frame-propD[li])/7):0;
+
+    if(li<layers.length-1){
+      const ny=layerY[li+1];const nn=layers[li+1];
+      const ng=Math.min(13,150/nn);const nsx=97-(nn-1)*ng/2;
+      const cActive=frame>propD[li]+3;
+
+      for(let j=0;j<n;j++){
+        for(let k=0;k<nn;k++){
+          const x1=sx+j*gap,x2=nsx+k*ng;
+          const w=acts[li][j]*acts[li+1][k];
+          const cAlpha=cActive?Math.min(w*lProg*0.22,0.18):0.01;
+          const cWidth=cActive?0.3+w*lProg*0.8:0.2;
+          s+=`<line x1="${x1}" y1="${y+5}" x2="${x2}" y2="${ny-5}" stroke="${accC}" stroke-width="${cWidth}" opacity="${cAlpha}"/>`;
+        }
+      }
+    }
+
+    for(let j=0;j<n;j++){
+      const cx=sx+j*gap;
+      const act=acts[li][j];
+      const vis=lActive?act*lProg:0;
+      let fCol=accC;
+      if(li===layers.length-1&&j===aD&&lActive) fCol=dc;
+      s+=`<circle cx="${cx}" cy="${y}" r="5" fill="${fCol}" fill-opacity="${vis*0.7}" stroke="${lActive&&vis>0.1?fCol:nStr}" stroke-width="0.5" stroke-opacity="${lActive?0.5:0.6}"/>`;
+    }
+  });
+
+  if(isSpfm){
+    s+=`<line x1="97" y1="${layerY[4]+6}" x2="97" y2="${gumY-10}" stroke="${nStr}" stroke-width="0.4"/>`;
+    const gA=frame>gumD;
+    s+=`<rect x="22" y="${gumY-9}" width="150" height="20" rx="5" fill="${gA?purBg:nBg}" stroke="${gA?purC:nStr}" stroke-width="0.5"/>`;
+    s+=`<text x="97" y="${gumY+4}" text-anchor="middle" fill="${gA?purC:txtF}" font-size="10" font-weight="500" font-family="system-ui,sans-serif">Gumbel-Softmax</text>`;
+
+    s+=`<line x1="97" y1="${gumY+11}" x2="97" y2="${modeY-14}" stroke="${nStr}" stroke-width="0.4"/>`;
+    const mA=frame>modeD;
+    const mW=30,mG=5;const tW=DRUGS.length*mW+(DRUGS.length-1)*mG;const mSx=97-tW/2;
+    DRUGS.forEach((dd,mi)=>{
+      const isA=mi===aD;const mc=dd.cl;const mx=mSx+mi*(mW+mG);
+      if(mA&&isA){const pulse=Math.sin(frame*0.15)*0.06+0.2;
+        s+=`<rect x="${mx-2}" y="${modeY-13}" width="${mW+4}" height="26" rx="6" fill="${mc}" fill-opacity="${pulse}"/>`;
+      }
+      s+=`<rect x="${mx}" y="${modeY-10}" width="${mW}" height="20" rx="4" fill="${isA&&mA?mc:'none'}" fill-opacity="${isA&&mA?0.25:0}" stroke="${mc}" stroke-width="${isA&&mA?1.5:0.5}" opacity="${mA?(isA?1:0.2):0.15}"/>`;
+      s+=`<text x="${mx+mW/2}" y="${modeY+4}" text-anchor="middle" fill="${isA&&mA?mc:txtF}" font-size="8" font-weight="${isA?'500':'400'}" font-family="system-ui,sans-serif">${mi+1}</text>`;
+    });
+
+    const sA=frame>sampD;
+    s+=`<line x1="97" y1="${modeY+12}" x2="97" y2="${sampY-8}" stroke="${sA?accC:nStr}" stroke-width="0.4"/>`;
+    s+=`<rect x="55" y="${sampY-7}" width="84" height="18" rx="5" fill="${sA?accBg:nBg}" stroke="${sA?accC:nStr}" stroke-width="0.5"/>`;
+    s+=`<text x="97" y="${sampY+5}" text-anchor="middle" fill="${sA?accC:txtF}" font-size="10" font-weight="500" font-family="system-ui,sans-serif">x&#x2080;</text>`;
+  } else {
+    s+=`<line x1="97" y1="${layerY[4]+6}" x2="97" y2="${gumY}" stroke="${nStr}" stroke-width="0.4" stroke-dasharray="2 3"/>`;
+    const vA=frame>gumD;
+    s+=`<text x="97" y="${gumY+2}" text-anchor="middle" fill="${txtF}" font-size="8" font-style="italic" font-family="system-ui,sans-serif">base not conditioned</text>`;
+    s+=`<rect x="30" y="${modeY-9}" width="134" height="20" rx="5" fill="${vA?purBg:nBg}" stroke="${vA?purC:nStr}" stroke-width="0.5"/>`;
+    s+=`<text x="97" y="${modeY+4}" text-anchor="middle" fill="${vA?purC:txtF}" font-size="10" font-weight="500" font-family="system-ui,sans-serif">N(0, I)</text>`;
+
+    const sA=frame>sampD;
+    s+=`<line x1="97" y1="${modeY+11}" x2="97" y2="${sampY-8}" stroke="${sA?purC:nStr}" stroke-width="0.4"/>`;
+    s+=`<rect x="55" y="${sampY-7}" width="84" height="18" rx="5" fill="${sA?purBg:nBg}" stroke="${sA?purC:nStr}" stroke-width="0.5"/>`;
+    s+=`<text x="97" y="${sampY+5}" text-anchor="middle" fill="${sA?purC:txtF}" font-size="10" font-weight="500" font-family="system-ui,sans-serif">x&#x2080;</text>`;
+  }
+
+  svg.innerHTML=s;
+}
+
+function mkrn(seed){let sr=srand(seed);return function(){let u=0,v=0;while(!u)u=sr();while(!v)v=sr();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};}
+
+const cv=document.getElementById('gl');
+let cvW, cvH;
+function getCvSize(){ const r=cv.parentElement.getBoundingClientRect(); cvW=r.width; cvH=r.height; }
+getCvSize();
+
+const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+ren.setPixelRatio(window.devicePixelRatio);ren.setSize(cvW,cvH);
+ren.setClearColor(0x111111,1);
+const sc=new THREE.Scene();const cam=new THREE.PerspectiveCamera(42,cvW/cvH,0.1,100);
+cam.position.set(7,5,9);cam.lookAt(0,0,0);
+
+const axM=new THREE.LineBasicMaterial({color:0x333333});
+[[[4.5,0,0],[-4.5,0,0]],[[0,4.5,0],[0,-4.5,0]],[[0,0,4.5],[0,0,-4.5]]].forEach(p=>{
+  const g=new THREE.BufferGeometry().setFromPoints(p.map(v=>new THREE.Vector3(...v)));sc.add(new THREE.Line(g,axM));});
+const gh=new THREE.GridHelper(9,18,0x1c1c1c,0x161616);gh.position.y=-4;sc.add(gh);
+
+let srg=mkrn(42);
+const ctN=250;const ctP=new Float32Array(ctN*3);
+for(let i=0;i<ctN;i++){ctP[i*3]=srg()*0.5;ctP[i*3+1]=srg()*0.5;ctP[i*3+2]=srg()*0.5;}
+const ctG=new THREE.BufferGeometry();ctG.setAttribute('position',new THREE.BufferAttribute(ctP,3));
+sc.add(new THREE.Points(ctG,new THREE.PointsMaterial({size:0.08,color:0xaaaaaa,transparent:true,opacity:0.5})));
+
+const ctRingG=new THREE.RingGeometry(0.9,0.95,48);
+const ctRingM=new THREE.MeshBasicMaterial({color:0x999999,transparent:true,opacity:0.2,side:THREE.DoubleSide});
+const ctRing=new THREE.Mesh(ctRingG,ctRingM);ctRing.position.set(0,0,0);sc.add(ctRing);
+
+DRUGS.forEach((d,i)=>{
+  const g=new THREE.BufferGeometry();const n=70;const p=new Float32Array(n*3);
+  srg=mkrn(i*1000+7);
+  for(let j=0;j<n;j++){p[j*3]=d.ctr[0]+srg()*0.3;p[j*3+1]=d.ctr[1]+srg()*0.3;p[j*3+2]=d.ctr[2]+srg()*0.3;}
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  sc.add(new THREE.Points(g,new THREE.PointsMaterial({size:0.06,color:new THREE.Color(d.cl),transparent:true,opacity:0.3})));
+
+  const rG=new THREE.RingGeometry(0.75,0.8,32);
+  const rM=new THREE.MeshBasicMaterial({color:new THREE.Color(d.cl),transparent:true,opacity:0.12,side:THREE.DoubleSide});
+  const ring=new THREE.Mesh(rG,rM);ring.position.set(...d.ctr);sc.add(ring);
+
+  const c=document.createElement('canvas');c.width=128;c.height=28;
+  const x=c.getContext('2d');x.font='bold 13px sans-serif';x.fillStyle=d.cl;x.textAlign='center';x.fillText(d.name,64,18);
+  const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,opacity:0.6}));
+  sp.position.set(d.ctr[0],d.ctr[1]+0.7,d.ctr[2]);sp.scale.set(1.3,0.33,1);sc.add(sp);
+});
+
+{const c=document.createElement('canvas');c.width=96;c.height=24;const x=c.getContext('2d');
+x.font='bold 11px sans-serif';x.fillStyle='#aaa';x.textAlign='center';x.fillText('Control',48,16);
+const t=new THREE.CanvasTexture(c);const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,opacity:0.6}));
+sp.position.set(0,0.85,0);sp.scale.set(0.9,0.28,1);sc.add(sp);}
+
+const NF=50;let fPts,fLines,fSrc,fTgt;
+
+function buildP(){
+  if(fPts)sc.remove(fPts);if(fLines)sc.remove(fLines);
+  const d=DRUGS[aD];
+  fSrc=new Float32Array(NF*3);fTgt=new Float32Array(NF*3);
+
+  if(method==='spfm'){
+    const mc=[d.ctr[0]+d.moff[0],d.ctr[1]+d.moff[1],d.ctr[2]+d.moff[2]];
+    srg=mkrn(aD*5000+99);
+    for(let i=0;i<NF;i++){fSrc[i*3]=mc[0]+srg()*0.2;fSrc[i*3+1]=mc[1]+srg()*0.2;fSrc[i*3+2]=mc[2]+srg()*0.2;}
+  } else {
+    srg=mkrn(aD*5000+200);
+    for(let i=0;i<NF;i++){fSrc[i*3]=srg()*0.7;fSrc[i*3+1]=srg()*0.7;fSrc[i*3+2]=srg()*0.7;}
+  }
+  srg=mkrn(aD*3000+50);
+  for(let i=0;i<NF;i++){fTgt[i*3]=d.ctr[0]+srg()*0.28;fTgt[i*3+1]=d.ctr[1]+srg()*0.28;fTgt[i*3+2]=d.ctr[2]+srg()*0.28;}
+
+  const g=new THREE.BufferGeometry();const p=new Float32Array(NF*3);
+  for(let i=0;i<NF*3;i++)p[i]=fSrc[i];
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  const col=method==='spfm'?0xD85A30:0x7F77DD;
+  fPts=new THREE.Points(g,new THREE.PointsMaterial({size:0.13,color:col,transparent:true,opacity:0.9}));sc.add(fPts);
+
+  const lg=new THREE.BufferGeometry();const lp=new Float32Array(NF*2*3);
+  lg.setAttribute('position',new THREE.BufferAttribute(lp,3));
+  fLines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.35}));sc.add(fLines);
+}
+
+function eio(t){return t<0.5?2*t*t:-1+(4-2*t)*t;}
+function updateF(){
+  if(!fPts)return;const et=eio(fT);
+  const p=fPts.geometry.attributes.position.array;const l=fLines.geometry.attributes.position.array;
+  for(let i=0;i<NF;i++){
+    const px=fSrc[i*3]+(fTgt[i*3]-fSrc[i*3])*et;
+    const py=fSrc[i*3+1]+(fTgt[i*3+1]-fSrc[i*3+1])*et;
+    const pz=fSrc[i*3+2]+(fTgt[i*3+2]-fSrc[i*3+2])*et;
+    p[i*3]=px;p[i*3+1]=py;p[i*3+2]=pz;
+    l[i*6]=fSrc[i*3];l[i*6+1]=fSrc[i*3+1];l[i*6+2]=fSrc[i*3+2];
+    l[i*6+3]=px;l[i*6+4]=py;l[i*6+5]=pz;
+  }
+  fPts.geometry.attributes.position.needsUpdate=true;fLines.geometry.attributes.position.needsUpdate=true;
+}
+
+buildP();
+
+let ang=0;
+const rings=[];
+sc.traverse(o=>{if(o.isMesh&&o.geometry.type==='RingGeometry')rings.push(o);});
+
+function anim(){
+  requestAnimationFrame(anim);ang+=0.002;
+  cam.position.x=10*Math.cos(ang);cam.position.z=10*Math.sin(ang);cam.position.y=4.5;cam.lookAt(0,0,0);
+  rings.forEach(r=>{r.lookAt(cam.position);});
+  ren.render(sc,cam);
+}
+anim();
+
+function setT(t){fT=Math.max(0,Math.min(1,t));document.getElementById('td').textContent='t = '+fT.toFixed(2);document.getElementById('tsl').value=Math.round(fT*100);updateF();}
+function playF(){
+  if(fP){fP=false;document.getElementById('pbtn').textContent='Play';return;}
+  fP=true;document.getElementById('pbtn').textContent='Pause';if(fT>=0.99)fT=0;
+  (function tk(){if(!fP)return;fT+=0.004;if(fT>1){fT=1;fP=false;document.getElementById('pbtn').textContent='Play';}setT(fT);requestAnimationFrame(tk);})();
+}
+function resetF(){fP=false;document.getElementById('pbtn').textContent='Play';setT(0);}
+
+drawArch(65);
+window.addEventListener('resize',()=>{getCvSize();ren.setSize(cvW,cvH);cam.aspect=cvW/cvH;cam.updateProjectionMatrix();});
+</script>
+</body>
+</html>
